@@ -76,10 +76,13 @@ if uploaded_file and openai_key:
                         model="gpt-4o-mini",
                         messages=[
                             {"role": "system", "content": "You are a financial report assistant. Extract any chart/graph into structured text or JSON."},
-                            {"role": "user", "content": [
-                                {"type": "text", "text": "Read this financial chart and return structured data."},
-                                {"type": "image_url", "image_url": f"data:image/png;base64,{img_b64}"}
-                            ]}
+                            {
+                                "role": "user",
+                                "content": [
+                                    {"type": "text", "text": "Read this financial chart and return structured data."},
+                                    {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{img_b64}"}}
+                                ]
+                            }
                         ],
                         max_tokens=800
                     )
