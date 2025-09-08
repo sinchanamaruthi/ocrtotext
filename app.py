@@ -9,8 +9,8 @@ from openai import OpenAI
 
 # ---- CONFIG ----
 st.set_page_config(page_title="PDF to Text & Graph Reader", layout="wide")
-st.title("📄 PDF Reader with GPT-4o Vision")
-st.write("Upload a PDF → Extract **text**, **tables**, and **graphs** → Send graphs to GPT-4o Vision.")
+st.title("📄 PDF Reader with GPT-4o Vision (JSON Mode)")
+st.write("Upload a PDF → Extract **text**, **tables**, and **graphs** → Send graphs to GPT-4o Vision for JSON output.")
 
 # ---- API KEY ----
 openai_key = st.secrets.get("OPENAI_API_KEY", os.getenv("OPENAI_API_KEY"))
@@ -65,8 +65,8 @@ if uploaded_file and openai_key:
 
             st.image(pil_img, caption=f"Page {page_index+1}, Image {img_count}", use_container_width=True)
 
-            # ---- Send to GPT-4o Vision ----
-            if st.button(f"Send to GPT-4o (Image {img_count})", key=f"gpt_{page_index}_{img_index}"):
+            # ---- Send to GPT-4o Vision (JSON enforced) ----
+            if st.button(f"Convert Graph {img_count} to JSON", key=f"gpt_{page_index}_{img_index}"):
                 buffered = io.BytesIO()
                 pil_img.save(buffered, format="PNG")
                 img_b64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
@@ -75,11 +75,11 @@ if uploaded_file and openai_key:
                     response = client.chat.completions.create(
                         model="gpt-4o-mini",
                         messages=[
-                            {"role": "system", "content": "You are a financial report assistant. Extract any chart/graph into structured text or JSON."},
+                            {"role": "system", "content": "You are a financial report assistant. You must ONLY return valid JSON with no explanations."},
                             {
                                 "role": "user",
                                 "content": [
-                                    {"type": "text", "text": "Read this financial chart and return structured data."},
+                                    {"type": "text", "text": "Read this financial chart and return structured data as JSON. Include company name if present, x-axis (time), y-axis (value), and key data points."},
                                     {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{img_b64}"}}
                                 ]
                             }
@@ -87,8 +87,8 @@ if uploaded_file and openai_key:
                         max_tokens=800
                     )
 
-                st.success("✅ GPT-4o Output:")
-                st.write(response.choices[0].message.content)
+                st.success("✅ GPT-4o JSON Output:")
+                st.code(response.choices[0].message.content, language="json")
 
     # Cleanup temp file
     os.remove(pdf_name)
