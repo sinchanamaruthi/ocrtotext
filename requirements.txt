@@ -1,5 +1,6 @@
-streamlit
-PyMuPDF
-pdfplumber
-pillow
-openai
+streamlit==1.49.1
+PyPDF2==3.1.0
+pdfplumber==0.10.0
+pdf2image==1.16.0
+pytesseract==0.3.11
+Pillow==10.0.0
