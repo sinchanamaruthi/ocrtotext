@@ -86,8 +86,9 @@ if uploaded_file and openai_key:
                         ],
                         max_tokens=800
                     )
+
                 st.success("✅ GPT-4o Output:")
-                st.write(response.choices[0].message["content"])
+                st.write(response.choices[0].message.content)
 
     # Cleanup temp file
     os.remove(pdf_name)
