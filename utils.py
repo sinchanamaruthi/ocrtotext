@@ -1,45 +1,35 @@
-import PyPDF2
-import pdfplumber
 from pdf2image import convert_from_path
-import pytesseract
+import easyocr
+from PIL import Image
+import io
 
-def extract_text_pdf(file_path):
-    text = ""
-    try:
-        # Try PyPDF2 first
-        with open(file_path, "rb") as f:
-            reader = PyPDF2.PdfReader(f)
-            for page in reader.pages:
-                t = page.extract_text()
-                if t:
-                    text += t + "\n"
-    except:
-        pass
+reader = easyocr.Reader(['en'])  # Initialize once for English
 
-    # Use pdfplumber as fallback
-    if not text:
-        with pdfplumber.open(file_path) as pdf:
-            for page in pdf.pages:
-                t = page.extract_text()
-                if t:
-                    text += t + "\n"
-    
+def pdf_to_images(file):
+    """
+    Convert uploaded PDF (in-memory file) to list of PIL images.
+    """
+    images = convert_from_path(file, dpi=300)
+    return images
+
+def ocr_from_images(images):
+    """
+    Run EasyOCR on a list of images and return combined text.
+    """
+    full_text = ""
+    for i, img in enumerate(images):
+        # Convert PIL Image to RGB if not already
+        if img.mode != "RGB":
+            img = img.convert("RGB")
+        results = reader.readtext(img)
+        page_text = "\n".join([res[1] for res in results])
+        full_text += f"--- Page {i+1} ---\n{page_text}\n"
+    return full_text
+
+def extract_text_from_pdf(file):
+    """
+    Full PDF → Images → OCR workflow.
+    """
+    images = pdf_to_images(file)
+    text = ocr_from_images(images)
     return text
-
-def extract_text_from_images(file_path):
-    text = ""
-    pages = convert_from_path(file_path)
-    for page in pages:
-        text += pytesseract.image_to_string(page) + "\n"
-    return text
-
-def extract_full_text(file_path):
-    # Combine both text extraction and OCR
-    text = extract_text_pdf(file_path)
-    text_ocr = extract_text_from_images(file_path)
-    
-    # Merge results
-    if not text:
-        return text_ocr
-    else:
-        return text + "\n" + text_ocr
