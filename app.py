@@ -6,27 +6,24 @@ import os
 from PIL import Image
 import io
 import base64
-import requests
 from openai import OpenAI
 
 # ---- CONFIG ----
 st.set_page_config(page_title="PDF to Text & Graph Reader", layout="wide")
-st.title("📄 PDF Reader with GPT/Gemini Vision")
-st.write("Upload a PDF → Extract **text**, **tables**, and **graphs** → Send graphs to GPT-4o or Gemini Vision.")
+st.title("📄 PDF Reader with GPT-4o Vision")
+st.write("Upload a PDF → Extract **text**, **tables**, and **graphs** → Send graphs to GPT-4o Vision.")
 
-# ---- API KEYS ----
+# ---- API KEY ----
 openai_key = st.secrets.get("OPENAI_API_KEY", os.getenv("OPENAI_API_KEY"))
-gemini_key = st.secrets.get("GEMINI_API_KEY", os.getenv("GEMINI_API_KEY"))
-
-# Initialize OpenAI client if key exists
-client = None
-if openai_key:
+if not openai_key:
+    st.error("⚠️ No OpenAI API key found. Please add it in Streamlit secrets.")
+else:
     client = OpenAI(api_key=openai_key)
 
 # ---- FILE UPLOAD ----
 uploaded_file = st.file_uploader("Upload a PDF", type=["pdf"])
 
-if uploaded_file:
+if uploaded_file and openai_key:
     pdf_bytes = uploaded_file.read()
     pdf_name = uploaded_file.name
     
@@ -69,10 +66,8 @@ if uploaded_file:
 
             st.image(pil_img, caption=f"Page {page_index+1}, Image {img_count}", use_container_width=True)
 
-            col1, col2 = st.columns(2)
-
-            # ---- GPT-4o Vision ----
-            if client and col1.button(f"Send to GPT-4o (Image {img_count})", key=f"gpt_{page_index}_{img_index}"):
+            # ---- Send to GPT-4o Vision ----
+            if st.button(f"Send to GPT-4o (Image {img_count})", key=f"gpt_{page_index}_{img_index}"):
                 buffered = io.BytesIO()
                 pil_img.save(buffered, format="PNG")
                 img_b64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
@@ -91,29 +86,6 @@ if uploaded_file:
                     )
                 st.success("✅ GPT-4o Output:")
                 st.write(response.choices[0].message["content"])
-
-            # ---- Gemini Vision ----
-            if gemini_key and col2.button(f"Send to Gemini (Image {img_count})", key=f"gem_{page_index}_{img_index}"):
-                buffered = io.BytesIO()
-                pil_img.save(buffered, format="PNG")
-                img_b64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
-
-                with st.spinner("Asking Gemini Vision..."):
-                    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={gemini_key}"
-                    headers = {"Content-Type": "application/json"}
-                    payload = {
-                        "contents": [
-                            {"parts": [
-                                {"text": "Extract this chart into structured JSON or text."},
-                                {"inline_data": {"mime_type": "image/png", "data": img_b64}}
-                            ]}
-                        ]
-                    }
-                    r = requests.post(url, headers=headers, json=payload)
-                    result = r.json()
-
-                st.success("✅ Gemini Output:")
-                st.write(result)
 
     # Cleanup temp file
     os.remove(pdf_name)
