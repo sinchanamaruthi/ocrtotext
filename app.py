@@ -1,94 +1,22 @@
 import streamlit as st
-import fitz  # from PyMuPDF
-import pdfplumber
-import os
-from PIL import Image
-import io
-import base64
-from openai import OpenAI
+from utils import extract_full_text
 
-# ---- CONFIG ----
-st.set_page_config(page_title="PDF to Text & Graph Reader", layout="wide")
-st.title("📄 PDF Reader with GPT-4o Vision (JSON Mode)")
-st.write("Upload a PDF → Extract **text**, **tables**, and **graphs** → Send graphs to GPT-4o Vision for JSON output.")
+st.set_page_config(page_title="PDF Reader OCR", layout="wide")
+st.title("📄 PDF Reader with OCR & Image Support")
 
-# ---- API KEY ----
-openai_key = st.secrets.get("OPENAI_API_KEY", os.getenv("OPENAI_API_KEY"))
-if not openai_key:
-    st.error("⚠️ No OpenAI API key found. Please add it in Streamlit secrets.")
-else:
-    client = OpenAI(api_key=openai_key)
-
-# ---- FILE UPLOAD ----
 uploaded_file = st.file_uploader("Upload a PDF", type=["pdf"])
 
-if uploaded_file and openai_key:
-    pdf_bytes = uploaded_file.read()
-    pdf_name = uploaded_file.name
+if uploaded_file:
+    with st.spinner("Processing PDF..."):
+        text = extract_full_text(uploaded_file)
+    st.success("✅ Extraction Complete!")
     
-    # Save locally for parsing
-    with open(pdf_name, "wb") as f:
-        f.write(pdf_bytes)
+    st.subheader("Extracted Text")
+    st.text_area("Text Output", text, height=400)
 
-    # ---- TEXT EXTRACTION ----
-    st.subheader("🔹 Extracted Text")
-    with pdfplumber.open(pdf_name) as pdf:
-        full_text = ""
-        for page in pdf.pages:
-            full_text += page.extract_text() or ""
-        st.text_area("PDF Text", full_text, height=200)
-
-    # ---- TABLE EXTRACTION ----
-    st.subheader("🔹 Extracted Tables")
-    with pdfplumber.open(pdf_name) as pdf:
-        table_count = 0
-        for i, page in enumerate(pdf.pages):
-            tables = page.extract_tables()
-            for table in tables:
-                table_count += 1
-                st.write(f"Table {table_count} (Page {i+1})")
-                st.dataframe(table)
-        if table_count == 0:
-            st.write("⚠️ No tables detected.")
-
-    # ---- IMAGE EXTRACTION ----
-    st.subheader("🔹 Extracted Images (Graphs/Charts)")
-    doc = fitz.open(pdf_name)
-    img_count = 0
-    for page_index in range(len(doc)):
-        for img_index, img in enumerate(doc.get_page_images(page_index)):
-            xref = img[0]
-            base_image = doc.extract_image(xref)
-            image_bytes = base_image["image"]
-            pil_img = Image.open(io.BytesIO(image_bytes))
-            img_count += 1
-
-            st.image(pil_img, caption=f"Page {page_index+1}, Image {img_count}", use_container_width=True)
-
-            # ---- Send to GPT-4o Vision (JSON enforced) ----
-            if st.button(f"Convert Graph {img_count} to JSON", key=f"gpt_{page_index}_{img_index}"):
-                buffered = io.BytesIO()
-                pil_img.save(buffered, format="PNG")
-                img_b64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
-
-                with st.spinner("Asking GPT-4o Vision..."):
-                    response = client.chat.completions.create(
-                        model="gpt-4o-mini",
-                        messages=[
-                            {"role": "system", "content": "You are a financial report assistant. You must ONLY return valid JSON with no explanations."},
-                            {
-                                "role": "user",
-                                "content": [
-                                    {"type": "text", "text": "Read this financial chart and return structured data as JSON. Include company name if present, x-axis (time), y-axis (value), and key data points."},
-                                    {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{img_b64}"}}
-                                ]
-                            }
-                        ],
-                        max_tokens=800
-                    )
-
-                st.success("✅ GPT-4o JSON Output:")
-                st.code(response.choices[0].message.content, language="json")
-
-    # Cleanup temp file
-    os.remove(pdf_name)
+    st.download_button(
+        "Download as TXT",
+        text,
+        file_name="extracted_text.txt",
+        mime="text/plain"
+    )
