@@ -1,7 +1,6 @@
 import streamlit as st
-import fitz  # PyMuPDF
+import fitz  # from PyMuPDF
 import pdfplumber
-import tabula
 import os
 from PIL import Image
 import io
@@ -27,7 +26,7 @@ if uploaded_file and openai_key:
     pdf_bytes = uploaded_file.read()
     pdf_name = uploaded_file.name
     
-    # Save locally for tabula
+    # Save locally for parsing
     with open(pdf_name, "wb") as f:
         f.write(pdf_bytes)
 
@@ -41,16 +40,16 @@ if uploaded_file and openai_key:
 
     # ---- TABLE EXTRACTION ----
     st.subheader("🔹 Extracted Tables")
-    try:
-        dfs = tabula.read_pdf(pdf_name, pages="all", multiple_tables=True)
-        if dfs:
-            for i, df in enumerate(dfs):
-                st.write(f"Table {i+1}")
-                st.dataframe(df)
-        else:
+    with pdfplumber.open(pdf_name) as pdf:
+        table_count = 0
+        for i, page in enumerate(pdf.pages):
+            tables = page.extract_tables()
+            for table in tables:
+                table_count += 1
+                st.write(f"Table {table_count} (Page {i+1})")
+                st.dataframe(table)
+        if table_count == 0:
             st.write("⚠️ No tables detected.")
-    except Exception as e:
-        st.write("Table extraction error:", e)
 
     # ---- IMAGE EXTRACTION ----
     st.subheader("🔹 Extracted Images (Graphs/Charts)")
